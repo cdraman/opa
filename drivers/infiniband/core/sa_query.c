@@ -50,6 +50,7 @@
 #include <uapi/rdma/ib_user_sa.h>
 #include <rdma/ib_marshall.h>
 #include <rdma/ib_addr.h>
+#include <rdma/opa_addr.h>
 #include "sa.h"
 #include "core_priv.h"
 
@@ -2291,12 +2292,18 @@ static void update_sm_ah(struct work_struct *work)
 	rdma_ah_set_sl(&ah_attr, port_attr.sm_sl);
 	rdma_ah_set_port_num(&ah_attr, port->port_num);
 	if (port_attr.grh_required) {
+		__be64 if_id;
+
 		rdma_ah_set_ah_flags(&ah_attr, IB_AH_GRH);
 
 		rdma_ah_set_subnet_prefix(&ah_attr,
 					  cpu_to_be64(port_attr.subnet_prefix));
-		rdma_ah_set_interface_id(&ah_attr,
-					 cpu_to_be64(IB_SA_WELL_KNOWN_GUID));
+		if (rdma_cap_opa_ah(port->agent->device, port->port_num))
+			if_id = OPA_MAKE_ID(rdma_ah_get_dlid(&ah_attr));
+		else
+			if_id = cpu_to_be64(IB_SA_WELL_KNOWN_GUID);
+
+		rdma_ah_set_interface_id(&ah_attr, if_id);
 	}
 
 	new_ah->ah = rdma_create_ah(port->agent->qp->pd, &ah_attr);
